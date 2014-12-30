@@ -14,7 +14,7 @@
 		var game = new Phaser.Game(800, 600, Phaser.auto, 'asteroids', { preload: preload, create: create, update: update, render: render });
 
 		function preload() {
-			game.load.crossOrigin = "Anonymous";
+			game.load.crossOrigin = "https://rawgit.com";
 			game.load.image('background', 'assets/images/background.jpg');
 			game.load.image('stars', 'assets/images/stars.png');
 			game.load.spritesheet('explosion', 'assets/images/explode.png', 128, 128);

@@ -81,7 +81,8 @@
 
 			for (var i = 0; i < NUMBER_OF_ASTEROIDS; i++)
 			{
-				var asteroid = asteroids.create(game.world.randomX, game.world.randomY, 'asteroid'+game.rnd.integerInRange(1,3));
+				var rand = game.rnd.integerInRange(1,3);
+				var asteroid = asteroids.create(game.world.randomX, game.world.randomY, "asteroid"+rand);
 				game.physics.p2.enable(asteroid);
 				asteroid.body.allowRotation = true;
 				asteroid.body.collideWorldBounds = false;

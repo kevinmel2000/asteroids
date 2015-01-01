@@ -23,179 +23,216 @@
 			game.load.image('asteroid3', 'assets/images/asteroid3.png');
 			game.load.image('bullet', 'assets/images/bullet.png');
 			game.load.image('ship', 'assets/images/spaceship.png');
-
 		}
+		
+		var background1;
+		var background2;
 
-		var ship;
-		var background;
-		var stars;
-		var explosions;
-		var asteroids;
-		var NUMBER_OF_ASTEROIDS = 100;
-		var bullets;
-		var bulletTime = 0;
-		var BULLET_SPEED = 800;
-		var NUMBER_OF_BULLETS = 100;
-		var SHOOT_DELAY = 50;
-		var BULLET_LIFE_SPAN = 5000;
-		var cursors;
+		
+		var collision = {
+		
+			bullet: null,
+			asteroid: null,
+			ship: null,
+			
+			init: function() {
+				collision.bullet = game.physics.p2.createCollisionGroup();
+				collision.asteroid = game.physics.p2.createCollisionGroup();
+				collision.ship = game.physics.p2.createCollisionGroup();
+			}
+			
+		};
+		
+		var explosion = {
+		
+			group: null,
+			
+			init: function() {
+				explosion.group = game.add.group();
+				explosion.group.createMultiple(100, 'explosion');
+				explosion.group.forEach(explosion.setup, this);
+			},
+			
+			setup: function(sprite) {
+				sprite.anchor.x = 0.5;
+				sprite.anchor.y = 0.5;
+				sprite.animations.add('explosion');
+			}
+		
+		};
+		
+
+		
+		var bullet = {
+		
+			count: 100,
+			speed: 800,
+			lifespan: 3000,
+			delay: 50,
+			lastTime: 0,
+			group: null,
+			
+			init: function() {
+			
+				bullet.group = game.add.group();
+				bullet.group.enableBody = true;
+				bullet.group.physicsBodyType = Phaser.Physics.P2JS;
+				bullet.group.createMultiple(bullet.count, 'bullet');
+				bullet.group.forEach(bullet.setup, this);
+				
+			},
+			
+			setup: function(sprite) {
+			
+				game.physics.p2.enable(sprite);
+				sprite.anchor.x = 0.5;
+				sprite.anchor.y = 0.5;
+				sprite.body.collideWorldBounds = false;
+				sprite.body.setCollisionGroup(collision.bullet);
+				sprite.body.collides(collision.asteroid, bullet.collision, this);
+				sprite.kill();
+				
+			},
+			
+			collision: function(body1, body2) {
+			
+				body1.sprite.kill();
+				body2.sprite.kill();
+				
+				var kaboom = explosion.group.getFirstExists(false);
+				kaboom.reset(body2.x, body2.y);
+				kaboom.play('explosion', 30, false, true);
+				
+			},
+			
+			shootFromSprite: function(sprite) {
+
+				if (game.time.now > bullet.lastTime) {
+					var one = bullet.group.getFirstExists(false);
+					if(one){
+						one.revive();
+						one.reset(sprite.x, sprite.y);
+						one.lifespan = bullet.lifespan;
+						one.body.rotation = sprite.body.rotation;
+						one.rotation = sprite.rotation - Phaser.Math.degToRad(90);
+						one.body.velocity.x = Math.cos(one.rotation) * bullet.speed + sprite.body.velocity.x;
+						one.body.velocity.y = Math.sin(one.rotation) * bullet.speed + sprite.body.velocity.y;
+						bullet.lastTime = game.time.now + bullet.delay; 
+					}
+				}
+			}
+			
+		};
+		
+		var asteroid = {
+		
+			count: 100,
+			speed: 500,
+			group: null,
+			
+			init: function() {
+				asteroid.group = game.add.group();
+				asteroid.group.enableBody = true;
+				asteroid.group.physicsBodyType = Phaser.Physics.P2JS;
+
+				for (var i = 0; i < asteroid.count; i++)
+				{
+					var rand = game.rnd.integerInRange(1,3);
+					var sprite = asteroid.group.create(game.world.randomX, game.world.randomY, "asteroid"+rand);
+					game.physics.p2.enable(sprite);
+					sprite.body.allowRotation = true;
+					sprite.body.collideWorldBounds = false;
+					sprite.body.setCircle(15);
+					sprite.body.setCollisionGroup(collision.asteroid);
+					sprite.body.collides([collision.asteroid, collision.bullet, collision.ship]);
+					sprite.rotation = Phaser.Math.degToRad(game.rnd.integerInRange(0,360));
+					sprite.body.velocity.x = Math.cos(sprite.rotation) * asteroid.speed;
+					sprite.body.velocity.y = Math.sin(sprite.rotation) * asteroid.speed;
+				}			
+			},
+			
+		};
+		
+
+
+		var ship = {
+		
+			sprite: null,
+			
+			init: function() {
+				ship.sprite = game.add.sprite(1000, 1000, 'ship');
+				game.physics.p2.enable(ship.sprite);
+				ship.sprite.body.setCircle(16);
+				ship.sprite.body.setCollisionGroup(collision.ship);
+				ship.sprite.body.collides(collision.asteroid);
+				ship.sprite.body.collideWorldBounds = false;
+			}
+			
+		};
+		
+
 		
 
 		function create() {
 			
-			//world
 			game.world.setBounds(0, 0, 2000, 2000);
-			
 			game.physics.startSystem(Phaser.Physics.P2JS);
 			game.physics.p2.setImpactEvents(true);
-			game.physics.p2.defaultRestitution = 0.2;
-
-			//  Create our collision groups. One for the player, one for the asteroids
-			var pCollision = game.physics.p2.createCollisionGroup();
-			var aCollision = game.physics.p2.createCollisionGroup();
-			var bCollision = game.physics.p2.createCollisionGroup();
+			game.physics.p2.defaultRestitution = 0.9;
 			
-			//  This part is vital if you want the objects with their own collision groups to still collide with the world bounds
-			//  (which we do) - what this does is adjust the bounds to use its own collision group.
+			collision.init();
+
 			game.physics.p2.updateBoundsCollisionGroup();
 			
-			//background			
-			background = game.add.tileSprite(0, 0, 800, 600, 'background');
-			background.fixedToCamera = true;
+			background1 = game.add.tileSprite(0, 0, 800, 600, 'background');
+			background1.fixedToCamera = true;
 			
-			//stars
-			stars = game.add.tileSprite(0, 0, 800, 600, 'stars');
-			stars.fixedToCamera = true;
+			background2 = game.add.tileSprite(0, 0, 800, 600, 'stars');
+			background2.fixedToCamera = true;
+				
+			explosion.init();
+			asteroid.init();
+			bullet.init();
+			ship.init();
+
+			game.camera.follow(ship.sprite);
 			
-			
-			//  An explosion pool
-			explosions = game.add.group();
-			explosions.createMultiple(NUMBER_OF_ASTEROIDS, 'explosion');
-			explosions.forEach(setupExplosion, this);
+		}
 	
-			
-			//asteroids
-			asteroids = game.add.group();
-			asteroids.enableBody = true;
-			asteroids.physicsBodyType = Phaser.Physics.P2JS;
-
-			for (var i = 0; i < NUMBER_OF_ASTEROIDS; i++)
-			{
-				var rand = game.rnd.integerInRange(1,3);
-				var asteroid = asteroids.create(game.world.randomX, game.world.randomY, "asteroid"+rand);
-				game.physics.p2.enable(asteroid);
-				asteroid.body.allowRotation = true;
-				asteroid.body.collideWorldBounds = false;
-				asteroid.body.setCircle(15);
-				asteroid.body.setCollisionGroup(aCollision);
-				asteroid.body.collides([aCollision, bCollision, pCollision]);
-			}
-
-			//bullets
-			bullets = game.add.group();
-			bullets.enableBody = true;
-			bullets.physicsBodyType = Phaser.Physics.P2JS;
-			
-			for (var i = 0; i < NUMBER_OF_BULLETS; i++)
-			{
-				var bullet = bullets.create(0, 0, 'bullet');
-				game.physics.p2.enable(bullet);
-				bullet.body.collideWorldBounds = false;
-				bullet.body.setCollisionGroup(bCollision);
-				bullet.body.collides(aCollision, bulletCollision, this);
-				bullet.kill();
-			}
-			
-			
-			//ship
-			ship = game.add.sprite(1000, 1000, 'ship');
-			game.physics.p2.enable(ship);
-			ship.body.setCircle(16);
-			ship.body.setCollisionGroup(pCollision);
-			ship.body.collides(aCollision);
-			ship.body.collideWorldBounds = false;
-			
-			//camera
-			game.camera.follow(ship);
-			
-			//keys
-			cursors = game.input.keyboard.createCursorKeys();
-
-		}
-		
-
-		function setupExplosion(explosion) {
-			explosion.anchor.x = 0.5;
-			explosion.anchor.y = 0.5;
-			explosion.animations.add('explosion');
-		}
-
-		function bulletCollision(body1, body2) {
-		
-			body1.sprite.kill();
-			body2.sprite.kill();
-			
-			var explosion = explosions.getFirstExists(false);
-			explosion.reset(body2.x, body2.y);
-			explosion.play('explosion', 30, false, true);
-	
-		}
-
-		function shoot()
-		{
-			if (game.time.now > bulletTime) {
-				
-				var bullet = bullets.getFirstExists(false);
-				
-				if(bullet){
-				
-					bullet.revive();
-					bullet.reset(ship.x, ship.y);
-					bullet.lifespan = BULLET_LIFE_SPAN;
-					bullet.body.rotation = ship.body.rotation;
-					bullet.rotation = ship.rotation - Phaser.Math.degToRad(90);
-					bullet.body.velocity.x = Math.cos(bullet.rotation) * BULLET_SPEED + ship.body.velocity.x;
-					bullet.body.velocity.y = Math.sin(bullet.rotation) * BULLET_SPEED + ship.body.velocity.y;
-					bulletTime = game.time.now + SHOOT_DELAY; 
-					
-				}
-			}
-		}
-		
 		function update() {
 		
-			ship.body.setZeroRotation();
-			if (cursors.left.isDown) {
-				ship.body.rotateLeft(100);
-			} else if (cursors.right.isDown) {
-				ship.body.rotateRight(100);
+			ship.sprite.body.setZeroRotation();
+			if (game.input.keyboard.isDown(Phaser.Keyboard.LEFT)) {
+				ship.sprite.body.rotateLeft(100);
+			} else if (game.input.keyboard.isDown(Phaser.Keyboard.RIGHT)) {
+				ship.sprite.body.rotateRight(100);
 			}
 
-			if (cursors.up.isDown) {
-				ship.body.thrust(200);
-			} else if (cursors.down.isDown) {
-				ship.body.reverse(200);
+			if (game.input.keyboard.isDown(Phaser.Keyboard.UP)) {
+				ship.sprite.body.thrust(200);
+			} else if (game.input.keyboard.isDown(Phaser.Keyboard.DOWN)) {
+				ship.sprite.body.reverse(200);
 			}
 			
 			if (game.input.keyboard.isDown(Phaser.Keyboard.SPACEBAR))
 			{
-				shoot();
+				bullet.shootFromSprite(ship.sprite);
 			}
 	
 			if (!game.camera.atLimit.x)
 			{
-				background.tilePosition.x -= (ship.body.velocity.x * 0.4) * game.time.physicsElapsed;
-				stars.tilePosition.x -= (ship.body.velocity.x * 0.2) * game.time.physicsElapsed;
+				background1.tilePosition.x -= (ship.sprite.body.velocity.x * 0.4) * game.time.physicsElapsed;
+				background2.tilePosition.x -= (ship.sprite.body.velocity.x * 0.2) * game.time.physicsElapsed;
 			}
 			if (!game.camera.atLimit.y)
 			{
-				background.tilePosition.y -= (ship.body.velocity.y * 0.4) * game.time.physicsElapsed;
-				stars.tilePosition.y -= (ship.body.velocity.y * 0.2) * game.time.physicsElapsed;
+				background1.tilePosition.y -= (ship.sprite.body.velocity.y * 0.4) * game.time.physicsElapsed;
+				background2.tilePosition.y -= (ship.sprite.body.velocity.y * 0.2) * game.time.physicsElapsed;
 			}
 			
-			asteroids.forEachExists(screenWrap, this);
-			bullets.forEachExists(screenWrap, this);
-			game.world.wrap(ship.body);
+			asteroid.group.forEachExists(screenWrap, this);
+			bullet.group.forEachExists(screenWrap, this);
+			screenWrap(ship.sprite);
 			
 			
 		}
@@ -206,7 +243,7 @@
 		
 		function render() {
 			//game.debug.spriteInfo(ship, 32, 32);
-			game.debug.text('Living Asteroids: ' + (asteroids.countLiving()), 32, 32);
+			game.debug.text('Living Asteroids: ' + (asteroid.group.countLiving()), 32, 32);
 		}
 
     };
